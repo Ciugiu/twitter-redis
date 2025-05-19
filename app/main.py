@@ -78,6 +78,22 @@ async def follow_user(follower_id: int, followed_id: int):
     redis.hincrby(f"user:{followed_id}", "follower_count", 1)
     return {"success": True}
 
+# # Update user creation to index username instead of id
+# @app.post("/user/", tags=["Users"])
+# async def create_user(user: NewUser):
+#     user_id = redis.incr("seq:user")
+#     hashed_password = get_hashed_password(user.password.encode())
+#     user_info = {
+#         "id": user_id,
+#         "username": user.username,
+#         "password": hashed_password,
+#         "follower_count": 0,
+#         "following_count": 0,
+#     }
+#     redis.hmset(f"user:{user_id}", user_info)
+#     # Index username to user id for fast lookup
+#     redis.set(f"username:{user.username}", user_id)
+#     return {"success": True, user_id: user_id}
 
 ### Get User
 @app.get("/user/{id}", tags=["Users"])
@@ -240,3 +256,27 @@ async def authenticate_user(user_id: int, password: str):
         return {"success": True, "message": "Authentication successful"}
     else:
         return {"success": False, "message": "Invalid password"}
+
+
+# Find user by username
+@app.get("/user/by-username/{username}", tags=["Users"])
+async def get_user_by_username(username: str, response: Response):
+    """
+    Find a user by username.
+    """
+    user_id = redis.get(f"username:{username}")
+    if not user_id:
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {"success": False, "message": "User not found"}
+    # Reuse the get_user logic
+    user_info = redis.hmget(
+        f"user:{user_id}", ["username", "following_count", "follower_count"]
+    )
+    return User(
+        id=int(user_id),
+        username=user_info[0],
+        following_count=int(user_info[1]),
+        follower_count=int(user_info[2]),
+        following=redis.zrange(f"following:{user_id}", 0, -1),
+        followers=redis.zrange(f"followers:{user_id}", 0, -1),
+    )
