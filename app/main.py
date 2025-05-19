@@ -196,3 +196,25 @@ async def create_post(post: NewPost):
     # Add post id to user's posts list
     redis.lpush(f"user:{post.user_id}:posts", post_id)
     return {"success": True, "post_id": post_id}
+
+# Get user posts
+@app.get("/user/{id}/posts", tags=["Users"])
+async def get_user_posts(id: int, start: int = 0, stop: int = -1, response: Response = None):
+    """
+    Return posts of one user, with optional pagination.
+    - id: user id
+    - start: start index for pagination (default 0)
+    - stop: stop index for pagination (default -1, meaning all)
+    """
+    if redis.exists(f"user:{id}") == 0:
+        if response:
+            response.status_code = status.HTTP_404_NOT_FOUND
+        return {"success": False, "message": "User does not exist"}
+
+    post_ids = redis.lrange(f"user:{id}:posts", start, stop)
+    posts = []
+    for post_id in post_ids:
+        post_data = redis.hgetall(f"post:{post_id}")
+        if post_data:
+            posts.append(post_data)
+    return {"user_id": id, "posts": posts, "count": len(posts)}
