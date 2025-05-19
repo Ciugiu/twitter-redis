@@ -98,3 +98,20 @@ def get_hashed_password(plain_text_password):
 def check_password(plain_text_password, hashed_password):
     # Check hashed password. Using bcrypt, the salt is saved into the hash itself
     return bcrypt.checkpw(plain_text_password, hashed_password)
+
+### Get User Followers
+@app.get("/user/{id}/followers", tags=["Users"])
+async def get_user_followers(id: int, start: int = 0, stop: int = -1, response: Response = None):
+    """
+    Return all the followers of a user, with optional pagination.
+    - id: user id
+    - start: start index for pagination (default 0)
+    - stop: stop index for pagination (default -1, meaning all)
+    """
+    if redis.exists(f"user:{id}") == 0:
+        if response:
+            response.status_code = status.HTTP_404_NOT_FOUND
+        return {"success": False, "message": "User does not exist"}
+
+    followers = redis.zrange(f"followers:{id}", start, stop)
+    return {"user_id": id, "followers": followers, "count": len(followers)}
