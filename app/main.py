@@ -218,3 +218,24 @@ async def get_user_posts(id: int, start: int = 0, stop: int = -1, response: Resp
         if post_data:
             posts.append(post_data)
     return {"user_id": id, "posts": posts, "count": len(posts)}
+
+# Authenticate a user
+@app.post("/user/authenticate", tags=["Users"])
+async def authenticate_user(user_id: int, password: str):
+    """
+    Authenticate a user by user_id and password.
+    Uses the existing check_password method.
+    """
+    user_data = redis.hgetall(f"user:{user_id}")
+    if not user_data:
+        return {"success": False, "message": "User does not exist"}
+
+    stored_hash = user_data.get("password")
+    if not stored_hash:
+        return {"success": False, "message": "No password set for user"}
+
+    # bcrypt requires bytes
+    if check_password(password.encode(), stored_hash.encode()):
+        return {"success": True, "message": "Authentication successful"}
+    else:
+        return {"success": False, "message": "Invalid password"}
