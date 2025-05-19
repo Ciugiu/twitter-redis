@@ -134,3 +134,27 @@ async def get_user_following(id: int, start: int = 0, stop: int = -1, response: 
 
     following = redis.zrange(f"following:{id}", start, stop)
     return {"user_id": id, "following": following, "count": len(following)}
+
+
+### Unfollow a user
+@app.post("/user/unfollow", tags=["Users"])
+async def unfollow_user(follower_id: int, followed_id: int):
+    """
+    Unfollow a user. Reverts the actions of following:
+    - Removes follower_id from followed_id's followers
+    - Removes followed_id from follower_id's following
+    - Decrements follower and following counts
+    """
+    if not redis.hgetall(f"user:{follower_id}"):
+        return {"success": False, "message": "Follower user does not exist"}
+    if not redis.hgetall(f"user:{followed_id}"):
+        return {"success": False, "message": "Followed user does not exist"}
+    # Remove follower from followed's followers set
+    removed_from_followers = redis.zrem(f"followers:{followed_id}", follower_id)
+    # Remove followed from follower's following set
+    removed_from_following = redis.zrem(f"following:{follower_id}", followed_id)
+    if removed_from_followers == 0 or removed_from_following == 0:
+        return {"success": False, "message": "User is not currently followed"}
+    redis.hincrby(f"user:{follower_id}", "following_count", -1)
+    redis.hincrby(f"user:{followed_id}", "follower_count", -1)
+    return {"success": True}
