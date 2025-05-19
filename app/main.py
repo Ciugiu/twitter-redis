@@ -70,9 +70,10 @@ async def follow_user(follower_id: int, followed_id: int):
         return {"success": False, "message": "Follower user does not exist"}
     if not redis.hgetall(f"user:{followed_id}"):
         return {"success": False, "message": "Followed user does not exist"}
-    if redis.zadd(f"followers:{followed_id}", {follower_id: timestamp}) == 0:
+    added_to_followers = redis.zadd(f"followers:{followed_id}", {follower_id: timestamp}, nx=True)
+    if added_to_followers == 0:
         return {"success": False, "message": "User is already followed"}
-    redis.zadd(f"following:{follower_id}", {followed_id: timestamp})
+    redis.zadd(f"following:{follower_id}", {followed_id: timestamp}, nx=True)
     redis.hincrby(f"user:{follower_id}", "following_count", 1)
     redis.hincrby(f"user:{followed_id}", "follower_count", 1)
     return {"success": True}
