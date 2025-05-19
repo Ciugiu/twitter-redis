@@ -23,6 +23,16 @@ class User(BaseModel):
     following: list[int]
     followers: list[int]
 
+class NewPost(BaseModel):
+    user_id: int
+    content: str
+
+class Post(BaseModel):
+    id: int
+    user_id: int
+    content: str
+    timestamp: int
+
 
 tags_metadata = [
     {
@@ -158,3 +168,31 @@ async def unfollow_user(follower_id: int, followed_id: int):
     redis.hincrby(f"user:{follower_id}", "following_count", -1)
     redis.hincrby(f"user:{followed_id}", "follower_count", -1)
     return {"success": True}
+
+
+# Create a post
+@app.post("/post/", tags=["Users"])
+async def create_post(post: NewPost):
+    """
+    Create a new post.
+    - Stores post content, user id, and timestamp in Redis.
+    - Adds post id to a global list and to the user's post list.
+    """
+    if redis.exists(f"user:{post.user_id}") == 0:
+        return {"success": False, "message": "User does not exist"}
+
+    post_id = redis.incr("seq:post")
+    timestamp = int(time.time())
+    post_data = {
+        "id": post_id,
+        "user_id": post.user_id,
+        "content": post.content,
+        "timestamp": timestamp,
+    }
+    # Store the post data
+    redis.hmset(f"post:{post_id}", post_data)
+    # Add post id to global posts list (optional)
+    redis.lpush("posts", post_id)
+    # Add post id to user's posts list
+    redis.lpush(f"user:{post.user_id}:posts", post_id)
+    return {"success": True, "post_id": post_id}
